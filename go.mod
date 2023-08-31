@@ -4,6 +4,7 @@ go 1.19
 
 require (
 	github.com/alecthomas/kong v0.7.1
+	github.com/google/pprof v0.0.0-20221203041831-ce31453925ec
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/oklog/run v1.1.0
 	github.com/parca-dev/parca v0.15.0

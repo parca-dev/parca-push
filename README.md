@@ -24,6 +24,8 @@ Flags:
                                  --labels=node=foo
       --normalized               Whether the profile sample addresses are
                                  already normalized by the mapping offset.
+      --override-timestamp       Update the timestamp in the pprof profile to be
+                                 the current time.
       --remote-store-address=STRING
                                  gRPC address to send profiles and symbols to.
       --remote-store-bearer-token=STRING
