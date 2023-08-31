@@ -15,13 +15,16 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"fmt"
 	"io"
 	"os"
+	"time"
 
 	"github.com/alecthomas/kong"
+	"github.com/google/pprof/profile"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	grun "github.com/oklog/run"
 	profilestorepb "github.com/parca-dev/parca/gen/proto/go/parca/profilestore/v1alpha1"
@@ -32,9 +35,10 @@ import (
 )
 
 type flags struct {
-	Path       string            `kong:"arg,help='Path to the profile data.'"`
-	Labels     map[string]string `kong:"help='Labels to attach to the profile data. For example --labels=__name__=process_cpu --labels=node=foo',short='l'"`
-	Normalized bool              `kong:"help='Whether the profile sample addresses are already normalized by the mapping offset.',default='false'"`
+	Path              string            `kong:"arg,help='Path to the profile data.'"`
+	Labels            map[string]string `kong:"help='Labels to attach to the profile data. For example --labels=__name__=process_cpu --labels=node=foo',short='l'"`
+	Normalized        bool              `kong:"help='Whether the profile sample addresses are already normalized by the mapping offset.',default='false'"`
+	OverrideTimestamp bool              `kong:"help='Update the timestamp in the pprof profile to be the current time.'"`
 
 	RemoteStore FlagsRemoteStore `embed:"" prefix:"remote-store-"`
 }
@@ -75,17 +79,32 @@ func run(flags flags) error {
 		}
 		defer conn.Close()
 
-		var profile []byte
+		var profileContent []byte
 		if flags.Path == "-" {
-			profile, err = io.ReadAll(os.Stdin)
+			profileContent, err = io.ReadAll(os.Stdin)
 			if err != nil {
 				return fmt.Errorf("read profile from stdin: %w", err)
 			}
 		} else {
-			profile, err = os.ReadFile(flags.Path)
+			profileContent, err = os.ReadFile(flags.Path)
 			if err != nil {
 				return fmt.Errorf("read profile file: %w", err)
 			}
+		}
+
+		p, err := profile.ParseData(profileContent)
+		if err != nil {
+			return fmt.Errorf("parse pprof profile: %w", err)
+		}
+
+		if flags.OverrideTimestamp {
+			now := time.Now()
+			p.TimeNanos = now.UnixNano()
+			buf := bytes.NewBuffer(nil)
+			if err := p.Write(buf); err != nil {
+				return fmt.Errorf("serialize pprof profile: %w", err)
+			}
+			profileContent = buf.Bytes()
 		}
 
 		profilestoreClient := profilestorepb.NewProfileStoreServiceClient(conn)
@@ -95,7 +114,7 @@ func run(flags flags) error {
 					Labels: labels,
 				},
 				Samples: []*profilestorepb.RawSample{{
-					RawProfile: profile,
+					RawProfile: profileContent,
 				}},
 			}},
 			Normalized: flags.Normalized,
