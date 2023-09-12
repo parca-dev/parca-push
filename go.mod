@@ -27,6 +27,3 @@ require (
 	google.golang.org/genproto v0.0.0-20230110181048-76db0878b65f // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
 )
-
-// required by https://github.com/grpc-ecosystem/grpc-gateway/releases/tag/v2.10.3
-replace cloud.google.com/go/storage v1.19.0 => cloud.google.com/go/storage v1.10.0
