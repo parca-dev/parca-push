@@ -39,6 +39,8 @@ jobs:
 
       - name: Run Goreleaser
         run: goreleaser release --rm-dist --debug
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Archive generated artifacts
         uses: actions/upload-artifact@v5
