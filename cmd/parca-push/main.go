@@ -32,6 +32,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 )
 
 type flags struct {
@@ -45,11 +46,12 @@ type flags struct {
 
 // FlagsRemoteStore provides remote store configuration flags.
 type FlagsRemoteStore struct {
-	Address            string `kong:"help='gRPC address to send profiles and symbols to.'"`
-	BearerToken        string `kong:"help='Bearer token to authenticate with store.'"`
-	BearerTokenFile    string `kong:"help='File to read bearer token from to authenticate with store.'"`
-	Insecure           bool   `kong:"help='Send gRPC requests via plaintext instead of TLS.'"`
-	InsecureSkipVerify bool   `kong:"help='Skip TLS certificate verification.'"`
+	Address            string            `kong:"help='gRPC address to send profiles and symbols to.'"`
+	BearerToken        string            `kong:"help='Bearer token to authenticate with store.'"`
+	BearerTokenFile    string            `kong:"help='File to read bearer token from to authenticate with store.'"`
+	Insecure           bool              `kong:"help='Send gRPC requests via plaintext instead of TLS.'"`
+	InsecureSkipVerify bool              `kong:"help='Skip TLS certificate verification.'"`
+	GRPCHeaders        map[string]string `kong:"help='Additional gRPC headers to send with each request (key=value pairs).'"`
 }
 
 func main() {
@@ -132,16 +134,33 @@ func run(flags flags) error {
 	return g.Run()
 }
 
+func customHeadersUnaryInterceptor(headers map[string]string) grpc.UnaryClientInterceptor {
+	return func(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+		for key, value := range headers {
+			ctx = metadata.AppendToOutgoingContext(ctx, key, value)
+		}
+		return invoker(ctx, method, req, reply, cc, opts...)
+	}
+}
+
 func grpcConn(reg prometheus.Registerer, flags FlagsRemoteStore) (*grpc.ClientConn, error) {
 	met := grpc_prometheus.NewClientMetrics()
 	met.EnableClientHandlingTimeHistogram()
 	reg.MustRegister(met)
 
-	opts := []grpc.DialOption{
-		grpc.WithUnaryInterceptor(
-			met.UnaryClientInterceptor(),
-		),
+	opts := []grpc.DialOption{}
+
+	// Add custom headers interceptor first if headers are provided
+	if len(flags.GRPCHeaders) > 0 {
+		opts = append(opts, grpc.WithUnaryInterceptor(
+			customHeadersUnaryInterceptor(flags.GRPCHeaders),
+		))
 	}
+
+	// Add metrics interceptor
+	opts = append(opts, grpc.WithUnaryInterceptor(
+		met.UnaryClientInterceptor(),
+	))
 	if flags.Insecure {
 		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	} else {
