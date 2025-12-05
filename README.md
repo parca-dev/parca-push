@@ -37,4 +37,7 @@ Flags:
                                  TLS.
       --remote-store-insecure-skip-verify
                                  Skip TLS certificate verification.
+      --remote-store-grpc-headers=KEY=VALUE;...
+                                 Additional gRPC headers to send with each
+                                 request (key=value pairs).
 ```
