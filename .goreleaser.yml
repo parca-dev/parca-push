@@ -1,11 +1,4 @@
-# NOTICE: This file is written with the assumption that it will be used in parca-dev/cross-builder.
-# - There are paths in this file that are specific to parca-dev/cross-builder and Github Actions.
-# - Unfortunately, Goreleaser does not support templating environment variables per build config.
-project_name: parca-push
-dist: ./goreleaser/dist
-before:
-  hooks:
-    - go mod tidy
+version: 2
 builds:
   - main: ./cmd/parca-push/
     id: "parca-push"
@@ -28,25 +21,29 @@ builds:
       # {{.CommitDate}} is the date of the commit to make builds reproducible.
       - -X main.version={{.Version}} -X main.commit={{.FullCommit}} -X main.date={{.CommitDate}} -X main.goArch={{.Runtime.Goarch}}
 archives:
-  - replacements:
-      linux: Linux
-      darwin: Darwin
-      amd64: x86_64
+  - name_template: >-
+      {{ .ProjectName }}_
+      {{- trimprefix .Version "v" }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64_v1" }}x86_64
+      {{- else if eq .Arch "arm64_v8.0" }}aarch64
+      {{- else }}{{ .Arch }}{{ end }}
+    format: binary
     format_overrides:
       - goos: windows
         format: zip
 checksum:
   name_template: 'checksums.txt'
 snapshot:
-  name_template: "{{ incpatch .Tag }}-next"
+  version_template: "{{ incpatch .Tag }}-next"
 release:
+  github:
+    owner: parca-dev
+    name: parca-push
   prerelease: auto
-  # Defaults to empty.
+  draft: false
+  name_template: '{{ .Tag }}'
   footer: |
-    ## Docker images
-
-    `docker pull ghcr.io/parca-dev/parca-push:{{ .Tag }}`
-
     ## Thanks!
 
     Join our [Discord server](https://discord.com/invite/ZgUpYgpzXy);
